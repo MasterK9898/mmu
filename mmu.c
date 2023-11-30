@@ -61,8 +61,6 @@ typedef struct
     uint64_t address : 48;
 } page_entry __attribute__((aligned));
 
-// typedef struct {}
-
 // the "ram"
 void *page_table[PAGE_COUNT];
 
@@ -77,9 +75,10 @@ size_t swap_pos = 0;
 
 int swap_fd;
 
-void *pair_address(page_entry *dir, uintptr_t virtual_address);
+// allocate a physical page and map it to a virtual page
+void *allocate_page(page_entry *dir, uintptr_t virtual_address);
 
-void init_page_table()
+void init()
 {
     for (int i = 0; i < PAGE_COUNT; i++)
     {
@@ -244,13 +243,12 @@ static void *get_page_from_address_space(page_entry *dir,
 
     if (!pt_entry->present)
     {
-        printf("pt_entry->address = %p\n", (void *)pt_entry->address);
         if (pt_entry->disk)
         {
             // the page is in the swap file
 
             // grab someone else's page
-            void *physical_address = pair_address(dir, virtual_address);
+            void *physical_address = allocate_page(dir, virtual_address);
             swap_in_page_entry(pt_entry, (uintptr_t)physical_address);
         }
         else
@@ -310,7 +308,7 @@ static void swap_page_from_address_space(page_entry *dir,
 }
 
 // get the physical address of a virtual page
-void *pair_address(page_entry *dir, uintptr_t virtual_address)
+void *allocate_page(page_entry *dir, uintptr_t virtual_address)
 {
     void *page_frame = page_table[table_pos];
 
@@ -342,7 +340,7 @@ uintptr_t allocate_virtual_page(page_entry *dir)
 
     // void *page_frame = allocate_page();
 
-    void *page_frame = pair_address(dir, virtual_address);
+    void *page_frame = allocate_page(dir, virtual_address);
 
     uintptr_t physical_address = (uintptr_t)page_frame;
     insert_page_into_address_space(dir, virtual_address, physical_address);
@@ -351,7 +349,7 @@ uintptr_t allocate_virtual_page(page_entry *dir)
 
 int main(void)
 {
-    init_page_table();
+    init();
     // basic assertions
     // assert(sizeof(page_entry) == 4);
     // if (sizeof(void *) != 4)
@@ -374,20 +372,34 @@ int main(void)
     }
     physical_address_1[PAGE_SIZE - 1] = '\0';
 
+    printf("first\n");
     puts(physical_address_1);
 
     uintptr_t virtual_address_2 = allocate_virtual_page(cr3);
+    char *physical_address_2 = get_page_from_address_space(cr3, virtual_address_2);
+
+    for (int i = 0; i < PAGE_SIZE - 1; i++)
+    {
+        physical_address_2[i] = (i + 5) % 10 + '0';
+    }
+    physical_address_2[PAGE_SIZE - 1] = '\0';
 
     uintptr_t virtual_address_3 = allocate_virtual_page(cr3);
     char *physical_address_3 = get_page_from_address_space(cr3, virtual_address_3);
-
-    // uintptr_t virtual_address_4 = allocate_virtual_page(cr3);
-    // char *physical_address_4 = get_page_from_address_space(cr3, virtual_address_4);
+    printf("third\n");
     puts(physical_address_3);
 
     physical_address_1 = get_page_from_address_space(cr3, virtual_address_1);
 
+    printf("first again\n");
     puts(physical_address_1);
+
+    uintptr_t virtual_address_4 = allocate_virtual_page(cr3);
+    char *physical_address_4 = get_page_from_address_space(cr3, virtual_address_4);
+
+    printf("second\n");
+    physical_address_2 = get_page_from_address_space(cr3, virtual_address_2);
+    puts(physical_address_2);
     // free(cr3);
     // free(page_frame);
 
